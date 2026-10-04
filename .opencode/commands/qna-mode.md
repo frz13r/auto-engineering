@@ -1,27 +1,22 @@
-# QnA Mode
+---
+description: Start the team by interviewing the user about the project
+agent: project-manager
+---
 
-Interactive project discovery — the Project Manager asks questions to understand your project, then launches the team.
+Run **QnA Mode**.
 
-## Run
+Use the `question` tool to ask 5–7 targeted questions, batching them where you can:
 
-```bash
-opencode run --agent project-manager \
-  "You are in qna-mode. Ask 5-7 targeted questions about the project (goals,
-   audience, tech constraints, scope, success criteria). Based on the answers,
-   check MCP availability, gather context, write context.md with mcp_status flags,
-   then delegate to scrum-master."
-```
+1. Goal — what are we building?
+2. Audience — who uses it?
+3. Tech stack — language / framework / database?
+4. Scope — roughly how many stories; what is out of scope?
+5. Existing repo — URL or local path, default branch, test command?
+6. Success criteria — what does "done" look like?
+7. Team capacity — developers, velocity, sprint length?
 
-## What the PM Asks
+Then follow your workflow from step 2: detect capabilities, write `context.md`
+per the contract in `AGENTS.md`, delegate planning to `scrum-master`, and run the
+develop → verify → report loop until every story is `done` or `blocked`.
 
-1. **Project Goal** — What are you building?
-2. **Target Audience** — Who uses it?
-3. **Tech Stack** — Preferred language/framework?
-4. **Scope** — How big is this? (~5 stories? 50?)
-5. **Existing Repo** — GitHub URL or local path?
-6. **Success Criteria** — What does "done" look like?
-7. **Team Capacity** — How many developers? Velocity? Sprint length?
-
-## After QnA
-
-The PM writes `context.md` and transitions to the same flow as Doc Mode: delegates to Scrum Master, launches Developers, Testers, and Progress Reporters until all stories are complete.
+Additional context from the user (may be empty): $ARGUMENTS
