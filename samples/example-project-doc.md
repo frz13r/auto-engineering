@@ -53,8 +53,7 @@
 - Follow the existing code patterns exactly (Blueprint, ValidationError, NotFoundError, paginate)
 - Tests must pass: `pytest tests/ -v`
 - The project uses `POSTS_PER_PAGE = 10` for pagination default
-- Port 5000 is occupied in the sandbox environment — use port 5001 or 8080 for running the app
-- Python venv created with `uv` (no pip module available; PEP 668)
+- Create the virtualenv with `uv` (`uv venv && uv pip install -r requirements.txt`)
 
 ## Success Criteria
 - [ ] `GET /api/v1/categories` returns paginated list of categories
@@ -94,15 +93,16 @@
 |---|---|
 | **Repo URL** | https://github.com/UNC-GDSC/Blog-Posts-Backend |
 | **Default Branch** | main |
-| **Local Path** | /home/hades/Documents/play/hermes/autonomous-engineering-team/v1/blog-project |
+| **Test Command** | `pytest tests/ -v` |
+| **Local Path** | (clone of the repo above, e.g. `./workspace/blog-project`) |
 
 ## MCP Context Gathering Results
 
 ### Copilot Enterprise Findings
-- N/A (MCP disabled in sandbox)
+- N/A (MCP unavailable)
 
 ### Confluence Documentation
-- N/A (MCP disabled in sandbox)
+- N/A (MCP unavailable)
 
 ### GitHub Repo Patterns
 - Blueprint-based routing pattern (see `app/routes/posts.py`)
@@ -113,7 +113,7 @@
 - Input validation via `Model.validate_*_data(data)` static methods
 
 ### Existing Jira Projects
-- N/A (MCP disabled in sandbox)
+- N/A (MCP unavailable)
 
 ## Notes
 
@@ -121,9 +121,7 @@
 1. The `Category` and `Tag` models have full `to_dict()`, `create_slug()`, and `validate_*_data()` methods but ZERO API routes
 2. The `Post.to_dict()` already serializes `category` and `tags` — but there's no way to set them via API
 3. `app/routes/__init__.py` registers only `posts_bp` and `health_bp` — new blueprints need registering
-4. `flask_limiter` is imported in `app/utils/rate_limiter.py` but is NOT in `requirements.txt` — this will cause an import error. The dev needs to install it (`pip install Flask-Limiter`) or the setup needs to handle it.
-5. The project uses `Faker` in CLI commands but it's in requirements.txt
-6. Port 5000 is occupied by an infra service — use a different port for running the app locally
+4. `flask_limiter` is imported in `app/utils/rate_limiter.py` but is NOT in `requirements.txt` — this causes an import error. Add `Flask-Limiter` to `requirements.txt` as part of the first story.
 
 ### Feature Breakdown (for Scrum Master)
 - **Story 1**: Category CRUD API — endpoints, models already exist, need routes + tests
