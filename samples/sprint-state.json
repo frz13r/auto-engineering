@@ -1,0 +1,65 @@
+{
+  "sprint_number": 1,
+  "sprint_goal": "Build core task board with authentication and drag-and-drop functionality",
+  "start_date": "2025-01-15",
+  "end_date": "2025-01-29",
+  "team_velocity": 20,
+  "max_concurrent_devs": 3,
+  "stories": [
+    {
+      "id": "AUTH-101",
+      "title": "Set up auth schema and user model",
+      "epic": "Authentication System",
+      "points": 3,
+      "status": "done",
+      "dependencies": [],
+      "assignee": "dev-1",
+      "pr": "gh-42",
+      "test_result": "APPROVE"
+    },
+    {
+      "id": "AUTH-102",
+      "title": "Implement JWT login endpoint",
+      "epic": "Authentication System",
+      "points": 5,
+      "status": "done",
+      "dependencies": ["AUTH-101"],
+      "assignee": "dev-1",
+      "pr": "gh-43",
+      "test_result": "APPROVE"
+    },
+    {
+      "id": "AUTH-103",
+      "title": "Add role-based access middleware",
+      "epic": "Authentication System",
+      "points": 3,
+      "status": "done",
+      "dependencies": ["AUTH-102"],
+      "assignee": "dev-2",
+      "pr": "gh-44",
+      "test_result": "APPROVE"
+    },
+    {
+      "id": "BOARD-101",
+      "title": "Create task board API",
+      "epic": "Task Board Core",
+      "points": 5,
+      "status": "in_progress",
+      "dependencies": ["AUTH-102"],
+      "assignee": "dev-2",
+      "pr": null,
+      "test_result": null
+    },
+    {
+      "id": "AUTH-104",
+      "title": "Integrate GitHub OAuth",
+      "epic": "Authentication System",
+      "points": 5,
+      "status": "todo",
+      "dependencies": ["AUTH-103"],
+      "assignee": null,
+      "pr": null,
+      "test_result": null
+    }
+  ]
+}
