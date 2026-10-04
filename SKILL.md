@@ -21,7 +21,8 @@ cd auto-engineering
 ```
 
 `setup.sh` clones the pinned Matt Pocock and Karpathy skill repos into
-`.opencode/skills/` and validates the configuration. Superpowers is loaded by
+`.opencode/skills/` (registered in `opencode.json` via `skills.paths`) and
+validates the configuration; `./setup.sh --check` is a read-only re-check. Superpowers is loaded by
 the pinned plugin in `opencode.json`.
 
 ## Run

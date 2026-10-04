@@ -23,8 +23,8 @@ agents write results to files and report a short summary in their final message.
 | Source | Loading method | Highlights |
 |--------|----------------|------------|
 | obra/superpowers | OpenCode plugin, pinned in `opencode.json` | brainstorming, test-driven-development, systematic-debugging, verification-before-completion, writing-plans, dispatching-parallel-agents, finishing-a-development-branch, using-git-worktrees |
-| mattpocock/skills | Cloned by `setup.sh` into `.opencode/skills/` (pinned commit) | tdd, implement, implement-spec, diagnosing-bugs, code-review, grilling, grill-with-docs, ask-matt, to-tickets, codebase-design |
-| andrej-karpathy-skills | Cloned by `setup.sh` into `.opencode/skills/` (pinned commit) | karpathy-guidelines (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) |
+| mattpocock/skills | Cloned by `setup.sh` (pinned commit), registered via `skills.paths` | tdd, implement, implement-spec, diagnosing-bugs, code-review, grilling, grill-with-docs, ask-matt, to-tickets, codebase-design |
+| andrej-karpathy-skills | Cloned by `setup.sh` (pinned commit), registered via `skills.paths` | karpathy-guidelines (Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution) |
 
 Load a skill with the `skill` tool, e.g. `skill(name: "tdd")`.
 
@@ -70,7 +70,7 @@ project_name: Blog Posts API
 repo_url: https://github.com/org/repo   # or null
 local_repo: /abs/path/to/project_root/workspace/blog-api   # always the team's own repo
 default_branch: main
-test_command: pytest tests/ -v          # or null if unknown
+test_command: pytest tests/ -v          # required before development starts
 developers: 2
 velocity: 20                            # points per sprint
 sprint_length_days: 10

@@ -28,6 +28,7 @@ Only the project manager delegates. Subagents communicate through files (see
 git clone <this-repo> auto-engineering
 cd auto-engineering
 ./setup.sh            # installs pinned skill repos and validates the config
+./setup.sh --check    # read-only validation (CI-friendly; non-zero on any problem)
 ```
 
 Then:
@@ -48,8 +49,10 @@ See [`workflows/README.md`](workflows/README.md) for the full flow.
 | [mattpocock/skills](https://github.com/mattpocock/skills) | Cloned by `setup.sh` (pinned commit) into `.opencode/skills/` | tdd, implement, implement-spec, diagnosing-bugs, code-review, grilling, grill-with-docs, ask-matt, to-tickets |
 | [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | Cloned by `setup.sh` (pinned commit) into `.opencode/skills/` | karpathy-guidelines |
 
-OpenCode discovers skills under `.opencode/skills/` automatically. To upgrade a
-skill source, change its pinned commit/tag in `setup.sh` / `opencode.json`.
+The cloned repos keep their own nested layout, so `opencode.json` registers them
+explicitly via `skills.paths`. `./setup.sh --check` verifies that every skill the
+agents rely on is present. To upgrade a skill source, change its pinned
+commit/tag in `setup.sh` / `opencode.json`.
 
 ## MCP Servers (optional, all disabled by default)
 
