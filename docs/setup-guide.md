@@ -80,9 +80,13 @@ dynamic client registration: ask your admin for an app registration and set
 ## Verify
 
 ```bash
-opencode mcp list   # live connection status
-./setup.sh          # also prints which team-* and personal servers are enabled
+./setup.sh --check  # read-only: validates skills, config and samples (no OpenCode needed)
+opencode mcp list   # live MCP connection status
 ```
+
+`./setup.sh` (without `--check`) also prints which `team-*` and personal MCP
+servers are enabled in your resolved config, but it installs or repairs the
+pinned skill repos first.
 
 ## Permissions note
 

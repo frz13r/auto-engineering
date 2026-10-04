@@ -4,10 +4,11 @@
 # Usage:
 #   ./setup.sh          # install pinned skill repos, then validate (incl. resolved config)
 #   ./setup.sh --check  # read-only static validation; exits non-zero on any problem.
-#                       # Does not run OpenCode, so it never fetches or caches anything.
+#                       # Only calls `opencode --version` (if installed), so it never
+#                       # fetches or caches anything and runs in CI without OpenCode.
 #
-# Requirements: OpenCode CLI, git, jq. Optional: uvx (team-atlassian MCP),
-# docker (team-github MCP).
+# Requirements: git, jq; OpenCode CLI (optional for --check). Optional: uvx
+# (team-atlassian MCP), docker (team-github MCP).
 
 set -euo pipefail
 
@@ -64,16 +65,23 @@ version_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -t. -k1,1n -k2,2n -k3,3n
 # --- 1. Prerequisites ---
 info "Checking prerequisites..."
 command -v git >/dev/null 2>&1 || fail "git not found"
-command -v "$OPENCODE_BIN" >/dev/null 2>&1 \
-  || fail "OpenCode CLI not found (set OPENCODE_BIN or install: https://opencode.ai/docs)"
 
-OPENCODE_VERSION="$("$OPENCODE_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
-if [[ -z "$OPENCODE_VERSION" ]]; then
-  warn "Could not determine OpenCode version"
-elif version_ge "$OPENCODE_VERSION" "$MIN_OPENCODE_VERSION"; then
-  ok "OpenCode $OPENCODE_VERSION"
+# --check validates files only, so it runs without OpenCode (e.g. in CI).
+if ! command -v "$OPENCODE_BIN" >/dev/null 2>&1; then
+  if $CHECK_ONLY; then
+    warn "OpenCode CLI not found — skipping version check (needed to run the team)"
+  else
+    fail "OpenCode CLI not found (set OPENCODE_BIN or install: https://opencode.ai/docs)"
+  fi
 else
-  fail "OpenCode $OPENCODE_VERSION is older than required $MIN_OPENCODE_VERSION"
+  OPENCODE_VERSION="$("$OPENCODE_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+  if [[ -z "$OPENCODE_VERSION" ]]; then
+    warn "Could not determine OpenCode version"
+  elif version_ge "$OPENCODE_VERSION" "$MIN_OPENCODE_VERSION"; then
+    ok "OpenCode $OPENCODE_VERSION"
+  else
+    fail "OpenCode $OPENCODE_VERSION is older than required $MIN_OPENCODE_VERSION"
+  fi
 fi
 
 command -v uvx    >/dev/null 2>&1 || info "uvx not found — needed only if you enable team-atlassian"

@@ -28,7 +28,7 @@ Only the project manager delegates. Subagents communicate through files (see
 git clone <this-repo> auto-engineering
 cd auto-engineering
 ./setup.sh            # installs pinned skill repos and validates the config
-./setup.sh --check    # read-only validation (CI-friendly; non-zero on any problem)
+./setup.sh --check    # read-only validation; needs git + jq only (CI-friendly)
 ```
 
 Then:
