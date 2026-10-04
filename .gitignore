@@ -1,0 +1,29 @@
+# OpenCode artifacts
+.opencode/auth/
+.opencode/cache/
+
+# Node / npm
+node_modules/
+*.local
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Build output
+dist/
+build/
+.next/
+
+# Logs
+*.log
+npm-debug.log*
