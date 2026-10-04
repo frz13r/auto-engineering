@@ -1,190 +1,177 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # setup.sh — Portable setup for the autonomous engineering team OpenCode project.
-# Run this once on a new machine to install all dependencies and register skills.
 #
 # Usage:
-#   ./setup.sh          # install everything
-#   ./setup.sh --check  # verify setup without installing
+#   ./setup.sh          # install pinned skill repos, then validate
+#   ./setup.sh --check  # validate only; changes nothing in this repo
+#                       # (OpenCode may still cache the pinned plugin in ~/.cache)
 #
-# Requirements:
-#   - OpenCode CLI (v1.18+ or v2.0.4+)
-#   - Node.js 18+ (for npx-based MCP servers)
-#   - Git
+# Requirements: OpenCode CLI, git. Optional: jq (JSON validation),
+# uvx (team-atlassian MCP), docker (team-github MCP).
 
 set -euo pipefail
 
-# --- Detect project root (directory containing this script) ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 OPENCODE_BIN="${OPENCODE_BIN:-opencode}"
+MIN_OPENCODE_VERSION="1.18.24"
 
-# --- Colors ---
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+# Pinned skill sources: name|url|commit
+SKILL_REPOS=(
+  "mattpocock-skills|https://github.com/mattpocock/skills.git|24fe0ef7737efae15c87225755e9f6f5965e4888"
+  "karpathy-skills|https://github.com/multica-ai/andrej-karpathy-skills.git|2c606141936f1eeef17fa3043a72095b4765b9c2"
+)
+SKILLS_DIR=".opencode/skills"
 
-info()  { echo -e "${BLUE}ℹ  $1${NC}"; }
-ok()    { echo -e "${GREEN}✓ $1${NC}"; }
-warn()  { echo -e "${YELLOW}⚠ $1${NC}"; }
-fail()  { echo -e "${RED}✗ $1${NC}" >&2; exit 1; }
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
+info() { printf "${BLUE}ℹ  %s${NC}\n" "$1"; }
+ok()   { printf "${GREEN}✓ %s${NC}\n" "$1"; }
+warn() { printf "${YELLOW}⚠ %s${NC}\n" "$1"; WARNINGS=$((WARNINGS + 1)); }
+fail() { printf "${RED}✗ %s${NC}\n" "$1" >&2; exit 1; }
+WARNINGS=0
 
 CHECK_ONLY=false
-if [[ "${1:-}" == "--check" ]]; then
-    CHECK_ONLY=true
-    info "Checking setup without installing..."
-fi
+case "${1:-}" in
+  --check) CHECK_ONLY=true; info "Check mode: validating without changing anything" ;;
+  "") ;;
+  *) fail "Unknown argument: $1 (use --check or nothing)" ;;
+esac
 
-# --- 1. Verify prerequisites ---
+# version_ge A B → true if A >= B (dotted numeric)
+version_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)" == "$2" ]]; }
+
+# --- 1. Prerequisites ---
 info "Checking prerequisites..."
-command -v "$OPENCODE_BIN" >/dev/null 2>&1 || fail "OpenCode CLI not found. Install from https://opencode.ai/docs/docs/getting-started/installation"
-command -v git >/dev/null 2>&1 || fail "Git not found"
-command -v node >/dev/null 2>&1 || fail "Node.js not found"
+command -v git >/dev/null 2>&1 || fail "git not found"
+command -v "$OPENCODE_BIN" >/dev/null 2>&1 \
+  || fail "OpenCode CLI not found (set OPENCODE_BIN or install: https://opencode.ai/docs)"
 
-OPENCODE_VERSION=$("$OPENCODE_BIN" --version | grep -oP '\d+\.\d+\.\d+' | head -1)
-info "OpenCode version: $OPENCODE_VERSION"
+OPENCODE_VERSION="$("$OPENCODE_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+if [[ -z "$OPENCODE_VERSION" ]]; then
+  warn "Could not determine OpenCode version"
+elif version_ge "$OPENCODE_VERSION" "$MIN_OPENCODE_VERSION"; then
+  ok "OpenCode $OPENCODE_VERSION"
+else
+  fail "OpenCode $OPENCODE_VERSION is older than required $MIN_OPENCODE_VERSION"
+fi
 
-# --- 2. Clone skill repos if not present ---
-# NOTE: superpowers is NOT cloned locally — it loads via the OpenCode plugin
-# (which auto-installs from git+https). Cloning it locally causes duplicate skill warnings.
-# Only mattpocock and karpathy are cloned for skills.paths discovery.
-SKILLS_DIR=".opencode/skills"
-mkdir -p "$SKILLS_DIR"
+command -v jq     >/dev/null 2>&1 || warn "jq not found — JSON validation will be skipped"
+command -v uvx    >/dev/null 2>&1 || info "uvx not found — needed only if you enable team-atlassian"
+command -v docker >/dev/null 2>&1 || info "docker not found — needed only if you enable team-github"
 
-clone_if_missing() {
-    local repo_name="$1"
-    local repo_url="$2"
-    local target_dir="$SKILLS_DIR/$repo_name"
-
-    if [[ -d "$target_dir" ]]; then
-        ok "$repo_name already cloned"
-        if ! $CHECK_ONLY; then
-            info "Updating $repo_name..."
-            cd "$target_dir" && git pull --ff-only 2>/dev/null || true
-            cd "$SCRIPT_DIR"
-        fi
+# --- 2. Skill repos (pinned) ---
+info "Skill repos (superpowers loads via the plugin in opencode.json)..."
+for entry in "${SKILL_REPOS[@]}"; do
+  IFS='|' read -r name url sha <<<"$entry"
+  dir="$SKILLS_DIR/$name"
+  if [[ -d "$dir/.git" ]]; then
+    current="$(git -C "$dir" rev-parse HEAD)"
+    if [[ "$current" == "$sha" ]]; then
+      ok "$name at pinned ${sha:0:12}"
+    elif $CHECK_ONLY; then
+      warn "$name at ${current:0:12}, expected ${sha:0:12} (run ./setup.sh)"
     else
-        if $CHECK_ONLY; then
-            warn "$repo_name not yet cloned"
-        else
-            info "Cloning $repo_name..."
-            git clone --depth=1 "$repo_url" "$target_dir"
-            ok "$repo_name cloned"
-        fi
+      info "Moving $name to pinned ${sha:0:12}..."
+      git -C "$dir" cat-file -e "${sha}^{commit}" 2>/dev/null || git -C "$dir" fetch --quiet origin "$sha"
+      git -C "$dir" -c advice.detachedHead=false checkout --quiet "$sha"
+      ok "$name at pinned ${sha:0:12}"
     fi
-}
-
-# superpowers loads via the plugin — do NOT clone it here
-# (the plugin auto-installs from git+https to ~/.cache/opencode/packages/)
-clone_if_missing "mattpocock-skills" "https://github.com/mattpocock/skills.git"
-clone_if_missing "karpathy-skills" "https://github.com/multica-ai/andrej-karpathy-skills.git"
-
-# --- 3. Configure Superpowers plugin ---
-if ! $CHECK_ONLY; then
-    info "Configuring Superpowers plugin in opencode.json..."
-    if ! "$OPENCODE_BIN" plugin add "superpowers@git+https://github.com/obra/superpowers.git" 2>/dev/null; then
-        warn "superpowers plugin add failed or already installed — checking config..."
-        if ! grep -q "superpowers@git" opencode.json; then
-            fail "Could not configure superpowers plugin. Add manually to opencode.json under 'plugin'.\n  \"plugin\": [\"superpowers@git+https://github.com/obra/superpowers.git\"]"
-        fi
-    fi
-    ok "Superpowers plugin configured"
-else
-    if grep -q "superpowers@git" opencode.json; then
-        ok "Superpowers plugin configured in opencode.json"
-    else
-        warn "Superpowers plugin not yet configured"
-    fi
-fi
-
-# --- 4. Verify MCP servers are configured ---
-info "Verifying MCP server config..."
-if grep -q '"filesystem"' opencode.json; then
-    ok "Filesystem MCP: configured"
-else
-    warn "Filesystem MCP: missing from opencode.json"
-fi
-
-if grep -q '"github-enterprise"' opencode.json; then
-    ok "GitHub Enterprise MCP: configured"
-else
-    warn "GitHub Enterprise MCP: missing from opencode.json"
-fi
-
-if grep -q '"copilot-enterprise"' opencode.json; then
-    ok "Copilot Enterprise MCP: configured"
-else
-    warn "Copilot Enterprise MCP: missing from opencode.json"
-fi
-
-if grep -q '"atlassian"' opencode.json; then
-    ok "Atlassian MCP (Jira/Confluence): configured"
-else
-    warn "Atlassian MCP: missing from opencode.json"
-fi
-
-# --- 5. Verify agent files ---
-info "Verifying agent definitions..."
-for agent in project-manager scrum-master developer tester progress-reporter; do
-    if [[ -f ".opencode/agents/$agent.md" ]]; then
-        ok "Agent: $agent"
-        # Verify no model is hardcoded
-        if grep -q "^model:" ".opencode/agents/$agent.md"; then
-            warn "Agent $agent has a hardcoded model — remove the model: line from frontmatter"
-        fi
-    else
-        fail "Agent file missing: .opencode/agents/$agent.md"
-    fi
+  elif $CHECK_ONLY; then
+    warn "$name not installed (run ./setup.sh)"
+  else
+    info "Cloning $name..."
+    mkdir -p "$SKILLS_DIR"
+    git clone --quiet "$url" "$dir"
+    git -C "$dir" -c advice.detachedHead=false checkout --quiet "$sha"
+    ok "$name cloned at ${sha:0:12}"
+  fi
 done
 
-# --- 6. Verify AGENTS.md ---
-if [[ -f "AGENTS.md" ]]; then
-    ok "AGENTS.md present"
+# --- 3. Static validation ---
+info "Validating files..."
+if command -v jq >/dev/null 2>&1; then
+  # Tracked + untracked-but-not-ignored JSON (falls back to find outside a git checkout)
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    json_files="$(git ls-files --cached --others --exclude-standard '*.json')"
+  else
+    json_files="$(find opencode.json samples -name '*.json' -type f)"
+  fi
+  while IFS= read -r f; do
+    [[ -z "$f" ]] && continue
+    if jq empty "$f" >/dev/null 2>&1; then ok "valid JSON: $f"; else fail "invalid JSON: $f"; fi
+  done <<<"$json_files"
+
+  # Sample sprint must respect the 80% capacity rule
+  if [[ -f samples/sprint-state.json ]]; then
+    if jq -e '(.stories | map(.points) | add) <= .capacity_points
+              and .capacity_points == ((.team_velocity * 0.8) | floor)' samples/sprint-state.json >/dev/null; then
+      ok "samples/sprint-state.json within capacity"
+    else
+      fail "samples/sprint-state.json exceeds capacity_points or capacity_points != floor(0.8 × velocity)"
+    fi
+  fi
+fi
+
+for agent in project-manager scrum-master developer tester progress-reporter; do
+  f=".opencode/agents/$agent.md"
+  [[ -f "$f" ]] || fail "Agent file missing: $f"
+  if grep -q '^model:' "$f"; then warn "$f hardcodes a model — remove the model: line"; fi
+  if [[ "$agent" != "project-manager" ]] && ! grep -q '^  task: "deny"' "$f"; then
+    fail "$f must set task: \"deny\" (only the project-manager delegates)"
+  fi
+done
+ok "Agent files present; only project-manager can delegate"
+
+for cmd in doc-mode qna-mode; do
+  grep -q '^agent: project-manager' ".opencode/commands/$cmd.md" \
+    || fail ".opencode/commands/$cmd.md must run as agent: project-manager"
+done
+ok "Slash commands route to project-manager"
+
+# --- 4. Resolved OpenCode config ---
+info "Resolving OpenCode config (global + project)..."
+# Write to a file: OpenCode truncates large output at 64 KiB when stdout is a pipe.
+resolved="$(mktemp)"
+trap 'rm -f "$resolved"' EXIT
+if "$OPENCODE_BIN" debug config >"$resolved" 2>/dev/null; then
+  ok "opencode.json loads"
+  if command -v jq >/dev/null 2>&1 && jq empty "$resolved" 2>/dev/null; then
+    for srv in team-atlassian team-github team-copilot; do
+      state="$(jq -r --arg s "$srv" 'if .mcp[$s] then (.mcp[$s].enabled | tostring) else "missing" end' "$resolved")"
+      [[ "$state" == "missing" ]] && warn "MCP $srv missing from resolved config" || info "MCP $srv: enabled=$state"
+    done
+    others="$(jq -r '.mcp // {} | to_entries | map(select((.key | startswith("team-") | not) and .value.enabled != false) | .key) | join(", ")' "$resolved")"
+    if [[ -n "$others" ]]; then info "Your own enabled MCP servers (the team can use these too): $others"; fi
+  fi
 else
-    warn "AGENTS.md not found — create one for team-wide instructions"
+  fail "'$OPENCODE_BIN debug config' failed — opencode.json (or your global config) does not load"
 fi
 
-# --- 7. Set up local output directories ---
-mkdir -p src dev-outputs test-outputs progress-reports samples
-
-# --- 8. Summary ---
-echo ""
-echo -e "${GREEN}═══ Setup Complete ═══${NC}"
-echo ""
-echo "Configuration files:"
-echo "  - opencode.json (project-level OpenCode config)"
-echo "  - .opencode/agents/*.md (5 agent definitions)"
-echo "  - .opencode/skills/ (2 skill repos: mattpocock, karpathy; superpowers via plugin)"
-echo ""
-echo "Skill repos installed:"
-echo "  - superpowers: 15 skills (brainstorming, tdd, debugging, etc.)"
-echo "    Loaded via plugin (auto-registers at OpenCode startup)"
-echo "  - mattpocock-skills: 37 skills (tdd, implement, grill, code-review, etc.)"
-echo "    Loaded via skills.paths in opencode.json"
-echo "  - karpathy-skills: 1 skill, 4 principles (think, simplicity, surgical, goal-driven)"
-echo "    Loaded via skills.paths in opencode.json"
-echo ""
-echo "MCP servers configured (disabled by default):"
-echo "  - copilot-enterprise  (MS Copilot Enterprise)"
-echo "  - atlassian           (Jira + Confluence)"
-echo "  - github-enterprise   (GitHub repos, PRs, issues)"
-echo "  - filesystem           (project-scoped file access)"
-echo ""
-echo "Environment variables needed (set in your shell):"
-echo "  - GITHUB_TOKEN         (for GitHub MCP)"
-echo "  - COPILOT_ENTERPRISE_URL (for Copilot Enterprise MCP)"
-echo ""
-echo "Usage:"
-echo "  opencode run --agent project-manager \\\\"
-echo "    \"We're building a new feature. Follow doc-mode.md to start.\""
-echo ""
-echo "  # Or use QnA mode for interactive project discovery:"
-echo "  opencode run --agent project-manager \\\\"
-echo "    \"You are in qna-mode. Ask 5-7 targeted questions, check MCP availability,"
-echo "      gather MCP context, write context.md with mcp_status flags, then delegate to scrum-master.\""
-echo ""
-if ! $CHECK_ONLY; then
-    echo "Restart OpenCode for all changes to take effect."
+# --- 5. Summary ---
+echo
+if (( WARNINGS > 0 )); then
+  printf "${YELLOW}═══ Done with %d warning(s) ═══${NC}\n" "$WARNINGS"
+else
+  printf "${GREEN}═══ Setup OK ═══${NC}\n"
 fi
+cat <<'EOF'
+
+MCP servers in opencode.json are disabled by default. To enable one for a
+session without editing the shared config:
+
+  OPENCODE_CONFIG_CONTENT='{"mcp":{"team-atlassian":{"enabled":true}}}' \
+    opencode --agent project-manager
+
+Required environment variables:
+  team-atlassian : JIRA_URL JIRA_USERNAME JIRA_API_TOKEN
+                   CONFLUENCE_URL CONFLUENCE_USERNAME CONFLUENCE_API_TOKEN
+  team-github    : GITHUB_PERSONAL_ACCESS_TOKEN (+ GITHUB_HOST for GitHub Enterprise)
+  team-copilot   : none — run: opencode mcp auth team-copilot
+
+Start:
+  Doc Mode : write src/project-doc.md (from src/project-template.md), then
+             opencode --agent project-manager   and type  /doc-mode
+             or: opencode run --command doc-mode
+  QnA Mode : opencode --agent project-manager   and type  /qna-mode
+EOF
