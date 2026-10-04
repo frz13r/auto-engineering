@@ -1,0 +1,13 @@
+{
+  "story_id": "AUTH-101",
+  "story_title": "Set up auth schema and user model",
+  "status": "complete",
+  "files_created": ["src/lib/schema.sql", "src/models/user.ts", "src/lib/auth.test.ts"],
+  "files_modified": ["src/app.tsx", "package.json"],
+  "tests_passed": true,
+  "tests_count": 8,
+  "tests_failed": 0,
+  "notes": "Supabase schema with role field. Next.js user model with password hashing using bcrypt.",
+  "pr_url": "https://github.com/example/taskflow-pro/pull/42",
+  "commit_hash": "a1b2c3d"
+}
