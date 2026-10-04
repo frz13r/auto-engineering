@@ -2,12 +2,13 @@
 # setup.sh — Portable setup for the autonomous engineering team OpenCode project.
 #
 # Usage:
-#   ./setup.sh          # install pinned skill repos, then validate
-#   ./setup.sh --check  # validate only; changes nothing in this repo
-#                       # (OpenCode may still cache the pinned plugin in ~/.cache)
+#   ./setup.sh          # install pinned skill repos, then validate (incl. resolved config)
+#   ./setup.sh --check  # read-only static validation; exits non-zero on any problem.
+#                       # Only calls `opencode --version` (if installed), so it never
+#                       # fetches or caches anything and runs in CI without OpenCode.
 #
-# Requirements: OpenCode CLI, git. Optional: jq (JSON validation),
-# uvx (team-atlassian MCP), docker (team-github MCP).
+# Requirements: git, jq; OpenCode CLI (optional for --check). Optional: uvx
+# (team-atlassian MCP), docker (team-github MCP).
 
 set -euo pipefail
 
@@ -24,6 +25,26 @@ SKILL_REPOS=(
 )
 SKILLS_DIR=".opencode/skills"
 
+# Skills the agent prompts depend on: <skill-name>|<path relative to SKILLS_DIR>
+REQUIRED_SKILLS=(
+  "tdd|mattpocock-skills/skills/engineering/tdd"
+  "implement|mattpocock-skills/skills/engineering/implement"
+  "implement-spec|mattpocock-skills/skills/engineering/implement-spec"
+  "diagnosing-bugs|mattpocock-skills/skills/engineering/diagnosing-bugs"
+  "code-review|mattpocock-skills/skills/engineering/code-review"
+  "codebase-design|mattpocock-skills/skills/engineering/codebase-design"
+  "grill-with-docs|mattpocock-skills/skills/engineering/grill-with-docs"
+  "ask-matt|mattpocock-skills/skills/engineering/ask-matt"
+  "to-tickets|mattpocock-skills/skills/engineering/to-tickets"
+  "grilling|mattpocock-skills/skills/productivity/grilling"
+  "karpathy-guidelines|karpathy-skills/skills/karpathy-guidelines"
+)
+# Must match "skills.paths" in opencode.json
+REQUIRED_SKILL_PATHS=(
+  ".opencode/skills/mattpocock-skills/skills"
+  ".opencode/skills/karpathy-skills/skills"
+)
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 info() { printf "${BLUE}ℹ  %s${NC}\n" "$1"; }
 ok()   { printf "${GREEN}✓ %s${NC}\n" "$1"; }
@@ -33,7 +54,7 @@ WARNINGS=0
 
 CHECK_ONLY=false
 case "${1:-}" in
-  --check) CHECK_ONLY=true; info "Check mode: validating without changing anything" ;;
+  --check) CHECK_ONLY=true; info "Check mode: read-only validation" ;;
   "") ;;
   *) fail "Unknown argument: $1 (use --check or nothing)" ;;
 esac
@@ -44,19 +65,25 @@ version_ge() { [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -t. -k1,1n -k2,2n -k3,3n
 # --- 1. Prerequisites ---
 info "Checking prerequisites..."
 command -v git >/dev/null 2>&1 || fail "git not found"
-command -v "$OPENCODE_BIN" >/dev/null 2>&1 \
-  || fail "OpenCode CLI not found (set OPENCODE_BIN or install: https://opencode.ai/docs)"
 
-OPENCODE_VERSION="$("$OPENCODE_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
-if [[ -z "$OPENCODE_VERSION" ]]; then
-  warn "Could not determine OpenCode version"
-elif version_ge "$OPENCODE_VERSION" "$MIN_OPENCODE_VERSION"; then
-  ok "OpenCode $OPENCODE_VERSION"
+# --check validates files only, so it runs without OpenCode (e.g. in CI).
+if ! command -v "$OPENCODE_BIN" >/dev/null 2>&1; then
+  if $CHECK_ONLY; then
+    warn "OpenCode CLI not found — skipping version check (needed to run the team)"
+  else
+    fail "OpenCode CLI not found (set OPENCODE_BIN or install: https://opencode.ai/docs)"
+  fi
 else
-  fail "OpenCode $OPENCODE_VERSION is older than required $MIN_OPENCODE_VERSION"
+  OPENCODE_VERSION="$("$OPENCODE_BIN" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)"
+  if [[ -z "$OPENCODE_VERSION" ]]; then
+    warn "Could not determine OpenCode version"
+  elif version_ge "$OPENCODE_VERSION" "$MIN_OPENCODE_VERSION"; then
+    ok "OpenCode $OPENCODE_VERSION"
+  else
+    fail "OpenCode $OPENCODE_VERSION is older than required $MIN_OPENCODE_VERSION"
+  fi
 fi
 
-command -v jq     >/dev/null 2>&1 || warn "jq not found — JSON validation will be skipped"
 command -v uvx    >/dev/null 2>&1 || info "uvx not found — needed only if you enable team-atlassian"
 command -v docker >/dev/null 2>&1 || info "docker not found — needed only if you enable team-github"
 
@@ -70,7 +97,7 @@ for entry in "${SKILL_REPOS[@]}"; do
     if [[ "$current" == "$sha" ]]; then
       ok "$name at pinned ${sha:0:12}"
     elif $CHECK_ONLY; then
-      warn "$name at ${current:0:12}, expected ${sha:0:12} (run ./setup.sh)"
+      fail "$name at ${current:0:12}, expected ${sha:0:12} (run ./setup.sh)"
     else
       info "Moving $name to pinned ${sha:0:12}..."
       git -C "$dir" cat-file -e "${sha}^{commit}" 2>/dev/null || git -C "$dir" fetch --quiet origin "$sha"
@@ -78,7 +105,7 @@ for entry in "${SKILL_REPOS[@]}"; do
       ok "$name at pinned ${sha:0:12}"
     fi
   elif $CHECK_ONLY; then
-    warn "$name not installed (run ./setup.sh)"
+    fail "$name not installed (run ./setup.sh)"
   else
     info "Cloning $name..."
     mkdir -p "$SKILLS_DIR"
@@ -88,28 +115,50 @@ for entry in "${SKILL_REPOS[@]}"; do
   fi
 done
 
-# --- 3. Static validation ---
-info "Validating files..."
-if command -v jq >/dev/null 2>&1; then
-  # Tracked + untracked-but-not-ignored JSON (falls back to find outside a git checkout)
-  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    json_files="$(git ls-files --cached --others --exclude-standard '*.json')"
-  else
-    json_files="$(find opencode.json samples -name '*.json' -type f)"
-  fi
-  while IFS= read -r f; do
-    [[ -z "$f" ]] && continue
-    if jq empty "$f" >/dev/null 2>&1; then ok "valid JSON: $f"; else fail "invalid JSON: $f"; fi
-  done <<<"$json_files"
+# --- 3. Required skills are present and discoverable ---
+info "Checking required skills..."
+for entry in "${REQUIRED_SKILLS[@]}"; do
+  IFS='|' read -r skill rel <<<"$entry"
+  f="$SKILLS_DIR/$rel/SKILL.md"
+  [[ -f "$f" ]] || fail "Required skill '$skill' not found at $f (run ./setup.sh)"
+  # OpenCode requires the frontmatter name to match the skill's directory name
+  grep -qE "^name:[[:space:]]*['\"]?${skill}['\"]?[[:space:]]*$" "$f" \
+    || fail "Skill '$skill' at $f has a mismatched 'name:' in its frontmatter"
+done
+ok "Required skills present (${#REQUIRED_SKILLS[@]})"
 
-  # Sample sprint must respect the 80% capacity rule
-  if [[ -f samples/sprint-state.json ]]; then
-    if jq -e '(.stories | map(.points) | add) <= .capacity_points
-              and .capacity_points == ((.team_velocity * 0.8) | floor)' samples/sprint-state.json >/dev/null; then
-      ok "samples/sprint-state.json within capacity"
-    else
-      fail "samples/sprint-state.json exceeds capacity_points or capacity_points != floor(0.8 × velocity)"
-    fi
+# --- 4. Static validation ---
+info "Validating files..."
+command -v jq >/dev/null 2>&1 || fail "jq is required for validation (install jq)"
+
+for sp in "${REQUIRED_SKILL_PATHS[@]}"; do
+  jq -e --arg p "$sp" '(.skills.paths // []) | index($p)' opencode.json >/dev/null \
+    || fail "opencode.json skills.paths must include $sp"
+done
+ok "opencode.json skills.paths point at the cloned skill repos"
+
+jq -e '.mcp | to_entries | map(select(.key | startswith("team-"))) | all(.value.enabled == false)' opencode.json >/dev/null \
+  || fail "team-* MCP servers in opencode.json must ship with \"enabled\": false"
+ok "team-* MCP servers disabled by default"
+
+# Tracked + untracked-but-not-ignored JSON (falls back to find outside a git checkout)
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  json_files="$(git ls-files --cached --others --exclude-standard '*.json')"
+else
+  json_files="$(find opencode.json samples -name '*.json' -type f)"
+fi
+while IFS= read -r f; do
+  [[ -z "$f" ]] && continue
+  if jq empty "$f" >/dev/null 2>&1; then ok "valid JSON: $f"; else fail "invalid JSON: $f"; fi
+done <<<"$json_files"
+
+# Sample sprint must respect the 80% capacity rule
+if [[ -f samples/sprint-state.json ]]; then
+  if jq -e '(.stories | map(.points) | add) <= .capacity_points
+            and .capacity_points == ((.team_velocity * 0.8) | floor)' samples/sprint-state.json >/dev/null; then
+    ok "samples/sprint-state.json within capacity"
+  else
+    fail "samples/sprint-state.json exceeds capacity_points or capacity_points != floor(0.8 × velocity)"
   fi
 fi
 
@@ -129,26 +178,33 @@ for cmd in doc-mode qna-mode; do
 done
 ok "Slash commands route to project-manager"
 
-# --- 4. Resolved OpenCode config ---
-info "Resolving OpenCode config (global + project)..."
-# Write to a file: OpenCode truncates large output at 64 KiB when stdout is a pipe.
-resolved="$(mktemp)"
-trap 'rm -f "$resolved"' EXIT
-if "$OPENCODE_BIN" debug config >"$resolved" 2>/dev/null; then
+# --- 5. Resolved OpenCode config ---
+# Install mode only: running OpenCode can fetch and cache the pinned plugin,
+# which would break --check's read-only guarantee.
+if ! $CHECK_ONLY; then
+  info "Resolving OpenCode config (global + project)..."
+  # Write to a file: OpenCode truncates large output at 64 KiB when stdout is a pipe.
+  resolved="$(mktemp)"
+  trap 'rm -f "$resolved"' EXIT
+  "$OPENCODE_BIN" debug config >"$resolved" 2>/dev/null && jq empty "$resolved" 2>/dev/null \
+    || fail "'$OPENCODE_BIN debug config' failed — opencode.json (or your global config) does not load"
   ok "opencode.json loads"
-  if command -v jq >/dev/null 2>&1 && jq empty "$resolved" 2>/dev/null; then
-    for srv in team-atlassian team-github team-copilot; do
-      state="$(jq -r --arg s "$srv" 'if .mcp[$s] then (.mcp[$s].enabled | tostring) else "missing" end' "$resolved")"
-      [[ "$state" == "missing" ]] && warn "MCP $srv missing from resolved config" || info "MCP $srv: enabled=$state"
-    done
-    others="$(jq -r '.mcp // {} | to_entries | map(select((.key | startswith("team-") | not) and .value.enabled != false) | .key) | join(", ")' "$resolved")"
-    if [[ -n "$others" ]]; then info "Your own enabled MCP servers (the team can use these too): $others"; fi
-  fi
-else
-  fail "'$OPENCODE_BIN debug config' failed — opencode.json (or your global config) does not load"
+
+  for sp in "${REQUIRED_SKILL_PATHS[@]}"; do
+    jq -e --arg p "$sp" '(.skills.paths // []) | any(endswith($p))' "$resolved" >/dev/null \
+      || fail "Resolved config is missing skills path $sp"
+  done
+  ok "Skill paths registered with OpenCode"
+
+  for srv in team-atlassian team-github team-copilot; do
+    state="$(jq -r --arg s "$srv" 'if .mcp[$s] then (.mcp[$s].enabled | tostring) else "missing" end' "$resolved")"
+    if [[ "$state" == "missing" ]]; then warn "MCP $srv missing from resolved config"; else info "MCP $srv: enabled=$state"; fi
+  done
+  others="$(jq -r '.mcp // {} | to_entries | map(select((.key | startswith("team-") | not) and .value.enabled != false) | .key) | join(", ")' "$resolved")"
+  if [[ -n "$others" ]]; then info "Your own enabled MCP servers (the team can use these too): $others"; fi
 fi
 
-# --- 5. Summary ---
+# --- 6. Summary ---
 echo
 if (( WARNINGS > 0 )); then
   printf "${YELLOW}═══ Done with %d warning(s) ═══${NC}\n" "$WARNINGS"

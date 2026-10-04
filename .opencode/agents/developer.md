@@ -4,7 +4,12 @@ color: "#3B82F6"
 mode: subagent
 permission:
   read: "allow"
-  edit: "allow"
+  edit:
+    "*": "deny"
+    ".worktrees/**": "allow"
+    "**/.worktrees/**": "allow"
+    "dev-outputs/**": "allow"
+    "**/dev-outputs/**": "allow"
   bash:
     "*": "allow"
     "git -C*": "deny"
@@ -62,7 +67,9 @@ you, write tests, commit, and record results in a file. You do NOT delegate.
 3. **Install dependencies** inside the worktree first (a fresh worktree has no
    `node_modules` / `.venv`).
 4. **Implement test-first**, following existing code patterns.
-5. **Run the tests** with `test_command` from the worktree. Fix failures.
+5. **Run the tests** with `test_command` from the worktree. Fix failures. If
+   `test_command` is missing or doesn't work, stop and write `status: "failed"`
+   with the reason — don't invent a different command.
 6. **Commit** on your story branch, staging files explicitly by path:
    `git add path/to/file1 path/to/file2 && git commit -m "<ID>: <summary>"`.
    Don't commit dependency folders or build output.
@@ -77,6 +84,7 @@ you, write tests, commit, and record results in a file. You do NOT delegate.
 - Never use `git -C`, `git add -A`/`.`/`-u`, `git commit -a`, `git stash`,
   `git checkout`/`switch`, `git reset --hard`, merge, rebase, or push. The PM
   handles merging.
-- Never edit `sprint-state.json` — the PM owns it.
+- Never edit `sprint-state.json` — the PM owns it. Edit permissions only allow
+  `.worktrees/` and `dev-outputs/`; anything else is rejected.
 - If you are blocked (missing dependency, broken environment), write
   `status: "failed"` with the reason in `notes` rather than working around it silently.

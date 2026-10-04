@@ -6,8 +6,8 @@ permission:
   read: "allow"
   edit:
     "*": "deny"
-    "test-outputs/*": "allow"
-    "*/test-outputs/*": "allow"
+    "test-outputs/**": "allow"
+    "**/test-outputs/**": "allow"
   bash:
     "*": "allow"
     "git *": "deny"
@@ -45,8 +45,11 @@ issue a verdict. You do NOT fix code and you do NOT delegate.
    `git diff <default_branch>...HEAD`. Pass the worktree as the explicit `path`
    to `glob` / `grep` (worktrees are gitignored).
 3. Run `test_command` inside the worktree (install dependencies first if they are
-   missing). Do not modify source files — if tests need a change, that is a
-   REQUEST_CHANGES.
+   missing).
+   - If `test_command` is null or fails to run at all, return REQUEST_CHANGES
+     with that as the issue — never APPROVE without running tests.
+   - Do not modify source files. If the tests need a change, that is a
+     REQUEST_CHANGES.
 4. Check each criterion: met / not met, with evidence (file:line or test name).
 5. Write `test-outputs/<ID>.json` in the project root per the schema in
    `AGENTS.md` (`verdict`, `commit_tested`, per-criterion results, test counts,

@@ -30,8 +30,7 @@ Use a shell alias if you do this often. Avoid exporting it globally — it appli
 to every project you open. If the whole team should have a server on, change
 `"enabled"` in `opencode.json` and commit it.
 
-Check the result with `opencode mcp list` or `./setup.sh --check` (run with the
-same variable set).
+Check the result with `opencode mcp list` (run with the same variable set).
 
 ## team-atlassian — Jira + Confluence
 
@@ -81,9 +80,13 @@ dynamic client registration: ask your admin for an app registration and set
 ## Verify
 
 ```bash
-opencode mcp list
-./setup.sh --check
+./setup.sh --check  # read-only: validates skills, config and samples (no OpenCode needed)
+opencode mcp list   # live MCP connection status
 ```
+
+`./setup.sh` (without `--check`) also prints which `team-*` and personal MCP
+servers are enabled in your resolved config, but it installs or repairs the
+pinned skill repos first.
 
 ## Permissions note
 
