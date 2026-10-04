@@ -1,160 +1,103 @@
-# Autonomous Engineering Team — v2
+# Autonomous Engineering Team
 
-A multi-agent engineering system on OpenCode CLI with 5 specialized agents spanning 3 stages: context gathering, Jira sprint planning, and development delivery — using MCP servers for Jira, Confluence, GitHub, and MS Copilot Enterprise.
+A multi-agent engineering team for the [OpenCode](https://opencode.ai) CLI. Five
+agents take a project from context gathering, through sprint planning (Jira
+optional), to tested, merged code and executive progress reports.
 
-**Fully portable** — no model hardcoded, skills bundled, single `setup.sh` to get working on any teammate's machine.
+- **No model hardcoded** — uses your `--model` flag or default model.
+- **Works offline from MCP** — Jira, Confluence, GitHub and Copilot are optional;
+  without them the team plans locally and merges locally.
+- **Safe parallelism** — each story gets its own git worktree and branch.
 
-## Architecture
+## Agents
 
-Five agents working as a coordinated team:
-
-| Agent | Role | Mode | Delegates To |
+| Agent | Role | Mode | Delegates |
 |---|---|---|---|
-| Project Manager (EM+PM) | Orchestrator: context, planning, coordination | primary | scrum-master, developer, tester, progress-reporter |
-| Scrum Master | Jira sprint planning: epics, stories, points, capacity | subagent | (none — reports via files) |
-| Developer | Implements sprint stories, writes tests | subagent | (none — reports via files) |
-| Tester | Verifies acceptance criteria, runs tests | subagent | (none — reports via files) |
-| Progress Reporter | Executive progress summaries | subagent | (none — reports via files) |
+| project-manager | Orchestrator: context, planning, worktrees, merges | primary | scrum-master, developer, tester, progress-reporter |
+| scrum-master | Epics, stories, points, Sprint 1 within 80% capacity | subagent | — |
+| developer | Implements one story in its worktree, test-first | subagent | — |
+| tester | Independent verification; cannot edit code | subagent | — |
+| progress-reporter | Short executive reports; read-only | subagent | — |
 
-**Key design**: The Project Manager is the sole orchestrator. It fans out subagents in parallel and collects results via file-based handoffs (`dev-outputs/`, `test-outputs/`, `sprint-state.json`). Subagents never delegate — they write results to files and exit.
+Only the project manager delegates. Subagents communicate through files (see
+[`AGENTS.md`](AGENTS.md), the single source of truth for all contracts).
 
-## Quick Start (Teammate Setup)
-
-```bash
-git clone <this-repo>
-cd autonomous-engineering-team/v1
-./setup.sh
-```
-
-The `setup.sh` script will:
-1. Clone Matt Pocock and Karpathy skills repos (superpowers loads via plugin)
-2. Configure the Superpowers OpenCode plugin
-3. Verify MCP server configuration
-4. Verify all 5 agent files and their skill instructions
-
-Then start a session:
-```bash
-opencode  # OpenCode auto-loads opencode.json + AGENTS.md
-```
-
-**No model is hardcoded** — OpenCode uses your default model or `--model` flag. Every teammate can use Claude, GPT, or any model they prefer.
-
-## Skills (3 sources, 53 skills + 1 built-in)
-
-| Repo | Skills | Loading Method | Used By |
-||------|--------|---------------|---------|
-|| **obra/superpowers** (15 skills) | brainstorming, test-driven-development, systematic-debugging, verification-before-completion, writing-plans, dispatching-parallel-agents, finishing-a-development-branch | Superpowers plugin (auto-registers at startup) | PM, Developers, Tester |
-|| **mattpocock/skills** (37 skills) | tdd, implement, implement-spec, diagnosing-bugs, code-review, grilling, grill-with-docs, to-tickets, codebase-design, research, and 20 more | skills.paths in opencode.json | PM, Developers, Tester |
-|| **andrej-karpathy-skills** (1 skill, 4 principles) | karpathy-guidelines: Think Before Coding, Simplicity First, Surgical Changes, Goal-Driven Execution | skills.paths in opencode.json | ALL agents |
-
-Skills are auto-discovered from `.opencode/skills/`. The Superpowers plugin auto-registers its own skills directory at startup and injects bootstrap context so skills trigger at the right moments. Matt Pocock and Karpathy skills are loaded via the `skills.paths` config key.
-
-## Entry Modes
-
-### Doc Mode — Start from a Project Document
-
-Place your project description at `src/project-doc.md` (use `src/project-template.md` as starting point), then:
+## Quick Start
 
 ```bash
-opencode run --agent project-manager \
-  "Read src/project-doc.md. Extract project name, tech stack, team capacity,
-   check MCP availability, write context.md with mcp_status flags, then delegate to scrum-master."
+git clone <this-repo> auto-engineering
+cd auto-engineering
+./setup.sh            # installs pinned skill repos and validates the config
 ```
 
-### QnA Mode — Interactive Project Discovery
+Then:
 
-No project doc? The PM asks 5-7 questions to understand your project:
+- **Doc Mode** — `cp src/project-template.md src/project-doc.md`, fill it in, then
+  `opencode --agent project-manager` and type `/doc-mode`
+  (or headless: `opencode run --command doc-mode`).
+- **QnA Mode** — `opencode --agent project-manager` and type `/qna-mode`
+  (TUI only; it asks you questions).
 
-```bash
-opencode run --agent project-manager \
-  "You are in qna-mode. Ask 5-7 targeted questions about the project (goals,
-   audience, tech constraints, scope, success criteria). Based on the answers,
-   check MCP availability, gather context, write context.md with mcp_status flags,
-   then delegate to scrum-master."
-```
+See [`workflows/README.md`](workflows/README.md) for the full flow.
 
-### How It Works
+## Skills
 
-```
-User Input (doc or QnA)
-    ↓
-Project Manager — checks MCP availability, gathers context → context.md
-    ↓
-Scrum Master — creates epics/stories, packs sprint → sprint-plan.md + sprint-state.json
-    ↓
-Project Manager (orchestrator) — launches Developers in parallel → dev-outputs/
-    ↓
-Project Manager — launches Testers → test-outputs/
-    ↓
-Progress Reporter → progress-reports/
-```
-
-## File Handoff Protocol
-
-All inter-agent communication happens through files in the project root:
-
-| File | Produced By | Purpose |
-|------|-------------|---------|
-| `context.md` | Project Manager | Project context, tech stack, MCP status, team capacity |
-| `sprint-plan.md` | Scrum Master | Epics, stories, acceptance criteria |
-| `sprint-state.json` | Scrum Master | Machine-readable sprint state |
-| `dev-outputs/<STORY>.json` | Developer | Implementation results |
-| `test-outputs/<STORY>.json` | Tester | Test/verification results |
-| `progress-reports/<date>.md` | Reporter | Executive summary |
-
-## MCP Servers (all disabled by default)
-
-| Server | Purpose | Env Var |
+| Source | Loaded via | Used for |
 |---|---|---|
-| Copilot Enterprise | MS Copilot Enterprise / Microsoft Graph | COPILOT_ENTERPRISE_URL |
-| Atlassian | Jira + Confluence (requires mcp-remote) | — |
-| GitHub Enterprise | GitHub repos, PRs, issues | GITHUB_TOKEN |
-| Filesystem | Project-scoped file access (always on) | — |
+| [obra/superpowers](https://github.com/obra/superpowers) | OpenCode plugin, pinned tag in `opencode.json` | brainstorming, TDD, debugging, verification, plans, parallel agents, git worktrees |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | Cloned by `setup.sh` (pinned commit) into `.opencode/skills/` | tdd, implement, implement-spec, diagnosing-bugs, code-review, grilling, grill-with-docs, ask-matt, to-tickets |
+| [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) | Cloned by `setup.sh` (pinned commit) into `.opencode/skills/` | karpathy-guidelines |
 
-**Works without MCP**: If servers are unavailable, the Project Manager detects this and writes `mcp_status: unavailable` flags. The team falls back to local files.
+OpenCode discovers skills under `.opencode/skills/` automatically. To upgrade a
+skill source, change its pinned commit/tag in `setup.sh` / `opencode.json`.
+
+## MCP Servers (optional, all disabled by default)
+
+| Server | Provides | Needs |
+|---|---|---|
+| team-atlassian | Jira + Confluence | `uvx`, `JIRA_*` / `CONFLUENCE_*` env vars |
+| team-github | GitHub / GitHub Enterprise | Docker, `GITHUB_PERSONAL_ACCESS_TOKEN` (+ `GITHUB_HOST`) |
+| team-copilot | Microsoft 365 Copilot Enterprise | `opencode mcp auth team-copilot` |
+
+Already have Jira/GitHub MCP servers in your global OpenCode config? Keep them —
+the team detects capabilities from the tools it has, whatever the server is
+called. Otherwise enable the `team-*` servers just for yourself; see
+[`docs/setup-guide.md`](docs/setup-guide.md).
+
+## File Handoffs (gitignored run artifacts)
+
+| File | Written by |
+|---|---|
+| `context.md` | project-manager |
+| `sprint-plan.md` | scrum-master |
+| `sprint-state.json` | scrum-master (creates), project-manager (updates) |
+| `dev-outputs/<ID>.json` | developer |
+| `test-outputs/<ID>.json` | tester |
+| `progress-reports/*.md` | progress-reporter |
+| `.worktrees/<ID>/` | project-manager (one per in-flight story) |
 
 ## Project Structure
 
 ```
-v1/
-├── opencode.json              # Portable OpenCode config (agents, MCP, skills, plugin)
-├── AGENTS.md                  # Team-wide instructions + skill mapping
-├── setup.sh                   # Run once to install everything
-├── README.md                  # This file
-├── .gitignore
+.
+├── opencode.json            # Plugin + opt-in MCP servers + default permissions
+├── AGENTS.md                # Team contracts (loaded for every agent)
+├── setup.sh                 # Install pinned skills + validate (./setup.sh --check)
 ├── .opencode/
-│   ├── agents/                # 5 agent system prompts (model-free, active)
-│   │   ├── project-manager.md
-│   │   ├── scrum-master.md
-│   │   ├── developer.md
-│   │   ├── tester.md
-│   │   └── progress-reporter.md
-│   ├── skills/                # 2 skill repos (mattpocock, karpathy; superpowers via plugin)
-│   ├── commands/              # OpenCode slash commands
-│   │   ├── doc-mode.md
-│   │   └── qna-mode.md
-├── src/
-│   └── project-template.md    # Template for project docs
-├── workflows/
-│   └── README.md              # Workflow documentation
-├── samples/                   # Example artifacts from a sim run
-│   ├── example-context.md
-│   ├── sprint-plan.md
-│   ├── sprint-state.json
-│   ├── dev-outputs/
-│   ├── test-outputs/
-│   └── progress-reports/
-├── dev-outputs/               # (gitignored) developer outputs
-├── test-outputs/              # (gitignored) tester outputs
-└── progress-reports/          # (gitignored) executive reports
+│   ├── agents/              # 5 agent definitions (prompt + permissions)
+│   ├── commands/            # /doc-mode, /qna-mode
+│   └── skills/              # Cloned by setup.sh (gitignored)
+├── src/project-template.md  # Start here for Doc Mode
+├── docs/setup-guide.md      # MCP setup
+├── workflows/README.md      # Flow details
+└── samples/                 # Example artifacts from a simulated sprint
 ```
 
-## Sample Artifacts
+## Samples
 
-See the `samples/` directory for example outputs from a simulated sprint:
-- `example-context.md` — what `context.md` looks like after context gathering
-- `sprint-plan.md` — sample sprint plan with epics and stories
-- `sprint-state.json` — sample machine-readable sprint state
-- `dev-outputs/AUTH-101.json` — sample developer output
-- `test-outputs/AUTH-101.json` — sample tester output
-- `progress-reports/sprint-1-day-3.md` — sample executive report
+- `example-project-doc.md` — a filled-in Doc Mode input (Blog Posts API, a real
+  open-source Flask repo).
+- The rest show a simulated sprint for a fictional "TaskFlow Pro" app:
+  `example-context.md`, `sprint-plan.md`, `sprint-state.json`,
+  `dev-outputs/AUTH-101.json`, `test-outputs/AUTH-101.json`, and
+  `progress-reports/sprint-1-2025-01-20.md`.

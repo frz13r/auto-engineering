@@ -1,96 +1,64 @@
 # Workflows
 
-## Doc Mode — Start from a Project Document
+Contracts (file formats, `sprint-state.json` schema, worktree rules) live in
+[`AGENTS.md`](../AGENTS.md). This page describes the flow.
 
-Use this when the user has a written project description.
+## Doc Mode — start from a project document
 
-### Input
+1. Copy `src/project-template.md` to `src/project-doc.md` and fill it in
+   (`samples/example-project-doc.md` is a worked example).
+2. Run it:
+   - TUI: `opencode --agent project-manager`, then type `/doc-mode`
+   - Headless: `opencode run --command doc-mode`
 
-Place your project description at `src/project-doc.md`. Use the template at `src/project-template.md`.
+Headless runs can't answer permission prompts. The agents' own permissions cover
+normal work, but anything that would ask is rejected; add `--auto` only if you
+accept auto-approving every non-denied action.
 
-### Run
+## QnA Mode — interactive discovery
+
+`opencode --agent project-manager`, then type `/qna-mode`. The PM asks 5–7
+questions with the `question` tool. This needs the TUI — `opencode run` cannot
+answer questions.
+
+## What happens
+
+```
+Doc / QnA
+  → PM: detect capabilities from available tools
+        clone / init the team repo at workspace/<name> → context.md
+  → scrum-master: epics, stories, Sprint 1 within 80% capacity
+                  → sprint-plan.md + sprint-state.json
+  → PM loop, per ready story (up to max_concurrent_devs at once):
+      create worktree .worktrees/<ID> on branch story/<ID>
+      developer (in worktree)  → dev-outputs/<ID>.json
+      tester    (in worktree)  → test-outputs/<ID>.json
+      APPROVE         → PM merges (--no-commit), runs tests, commits or aborts, removes worktree
+      REQUEST_CHANGES → back to developer (max 3 attempts, then blocked)
+  → progress-reporter after planning, each batch, and sprint end
+                  → progress-reports/sprint-<N>-<date>.md
+  → stop when every story is done or blocked
+```
+
+The PM is the only agent that updates `sprint-state.json` after it is created.
+
+## Ad-hoc progress report
 
 ```bash
-opencode run --agent project-manager \
-  "Read src/project-doc.md. Extract project name, tech stack, team capacity,
-   check MCP availability, write context.md with mcp_status flags, then delegate to scrum-master."
+opencode run --agent project-manager "Delegate to progress-reporter for a report on the current sprint."
 ```
 
-### What Happens
+## Reset between runs
 
-1. **Project Manager** reads the project doc, checks which MCP servers are available
-2. Writes `context.md` with project context and `mcp_status` flags
-3. Delegates to **Scrum Master** with the instruction to plan sprints
-4. **Scrum Master** creates epics/stories (in Jira if available, otherwise local), packs Sprint 1, writes `sprint-plan.md` and `sprint-state.json`
-5. **Project Manager** launches **Developers** in parallel for independent stories
-6. **Project Manager** launches **Tester** for each story
-7. **Project Manager** launches **Progress Reporter** for executive summaries
-8. The PM continues the full dev-test-report loop until all stories are done
-
-### Expected Output
-
-- `context.md` — extracted project context
-- `sprint-plan.md` — epics, stories, sprint 1 plan
-- `sprint-state.json` — machine-readable sprint state
-- `dev-outputs/<STORY>.json` — implementation results per story
-- `test-outputs/<STORY>.json` — test/verification results per story
-- `progress-reports/<date>.md` — executive progress reports
-
----
-
-## QnA Mode — Interactive Project Discovery
-
-Use this when there is no project document — the PM asks questions to understand the project.
-
-### Run
+Run artifacts are gitignored. To start fresh (removes the team's worktrees and
+`story/*` branches in its own repo under `workspace/`, never your checkout):
 
 ```bash
-opencode run --agent project-manager \
-  "You are in qna-mode. Ask 5-7 targeted questions about the project (goals,
-   audience, tech constraints, scope, success criteria). Based on the answers,
-   check MCP availability, gather context, write context.md with mcp_status flags,
-   then delegate to scrum-master."
+LOCAL_REPO=workspace/<name>
+rm -rf .worktrees context.md sprint-plan.md sprint-state.json dev-outputs test-outputs progress-reports
+git -C "$LOCAL_REPO" worktree prune
+git -C "$LOCAL_REPO" for-each-ref --format='%(refname:short)' 'refs/heads/story/*' \
+  | xargs -n1 git -C "$LOCAL_REPO" branch -D
 ```
 
-### Questions the PM Will Ask
-
-1. **Project Goal** — What are you building? (one sentence)
-2. **Target Audience** — Who uses it? (internal team, public users, etc.)
-3. **Tech Stack** — Preferred language/framework? (TypeScript/React, Python/FastAPI, Go, etc.)
-4. **Scope** — How big is this? (~5 stories? 50 stories? Multi-sprint?)
-5. **Existing Repo** — Is there a codebase? (GitHub URL or local path)
-6. **Success Criteria** — What does "done" look like? (tests passing, deployed, etc.)
-7. **Team Capacity** — How many developers? Velocity? Sprint length?
-
-### What Happens Next
-
-After gathering answers, the PM transitions to the same doc-mode flow: writes `context.md`, delegates to Scrum Master, and the full sprint cycle begins.
-
----
-
-## Progress Reporting
-
-Progress reports are generated automatically at sprint milestones. To manually request one:
-
-```bash
-opencode run --agent project-manager \
-  "Launch progress-reporter to generate an executive summary from sprint-state.json."
-```
-
-Reports are written to `progress-reports/` and follow the format:
-
-```
-[Project Name] — Sprint 1, Day 2 of 10
-Progress: ████████░░ 60%
-
-Completed:
-- AUTH-101: Implement login endpoint ✅
-
-In Progress:
-- AUTH-102: JWT token service 🚧
-
-Blocked:
-- (none)
-
-**Executive Summary:** ...
-```
+Or delete `workspace/` too, to re-clone from scratch.
