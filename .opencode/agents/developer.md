@@ -6,10 +6,10 @@ permission:
   read: "allow"
   edit:
     "*": "deny"
-    ".worktrees/*": "allow"
-    "*/.worktrees/*": "allow"
-    "dev-outputs/*": "allow"
-    "*/dev-outputs/*": "allow"
+    ".worktrees/**": "allow"
+    "**/.worktrees/**": "allow"
+    "dev-outputs/**": "allow"
+    "**/dev-outputs/**": "allow"
   bash:
     "*": "allow"
     "git -C*": "deny"

@@ -6,8 +6,8 @@ permission:
   read: "allow"
   edit:
     "*": "deny"
-    "progress-reports/*": "allow"
-    "*/progress-reports/*": "allow"
+    "progress-reports/**": "allow"
+    "**/progress-reports/**": "allow"
   bash: "deny"
   todowrite: "allow"
   task: "deny"
