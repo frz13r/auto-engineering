@@ -66,7 +66,8 @@ Jira projects).
 
 ### 3. Set up the team repo and write `context.md`
 The team always works in its **own** git repo at `<project_root>/workspace/<name>`
-— never in the user's checkout:
+— never in the user's checkout. First run
+`mkdir -p <project_root>/workspace <project_root>/.worktrees`, then:
 
 - Remote URL or a user's local checkout → `git clone <url-or-path> workspace/<name>`
 - Greenfield, or a directory that isn't a git repo →
@@ -78,6 +79,13 @@ Set `local_repo` to that absolute path (record the original in the free-form
 section). Then write `context.md` following the contract in `AGENTS.md` exactly
 (YAML front matter first). If `src/project-doc.md` is missing or still the blank
 template, stop and ask the user for it instead of inventing context.
+
+`test_command` must not stay null. Take it from the project doc or the user;
+otherwise infer it from the repo (`package.json` scripts, `pyproject.toml` /
+`pytest.ini`, `go.mod`, `Makefile`, ...) and confirm it runs. For greenfield,
+pick the stack's standard runner and make the first story set it up. If you
+still can't settle on one, ask the user (QnA) or stop and report — never start
+development without it.
 
 ### 4. Plan
 Delegate to `scrum-master`: "Read context.md and AGENTS.md. Create epics and
