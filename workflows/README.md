@@ -57,8 +57,10 @@ Run artifacts are gitignored. To start fresh (removes the team's worktrees and
 LOCAL_REPO=workspace/<name>
 rm -rf .worktrees context.md sprint-plan.md sprint-state.json dev-outputs test-outputs progress-reports
 git -C "$LOCAL_REPO" worktree prune
-git -C "$LOCAL_REPO" for-each-ref --format='%(refname:short)' 'refs/heads/story/*' \
-  | xargs -n1 git -C "$LOCAL_REPO" branch -D
+git -C "$LOCAL_REPO" for-each-ref --format='%(refname:short)' 'refs/heads/story/*' |
+  while IFS= read -r branch; do
+    [ -n "$branch" ] && git -C "$LOCAL_REPO" branch -D "$branch"
+  done
 ```
 
 Or delete `workspace/` too, to re-clone from scratch.
