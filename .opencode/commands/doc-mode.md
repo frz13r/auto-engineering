@@ -1,25 +1,19 @@
-# Doc Mode
+---
+description: Start the team from the project document in src/project-doc.md
+agent: project-manager
+---
 
-Start from a project document at `src/project-doc.md`. The Project Manager gathers context and launches the team.
+Run **Doc Mode**.
 
-## Run
+Project document:
 
-```bash
-opencode run --agent project-manager \
-  "Read src/project-doc.md. Extract project name, tech stack, team capacity,
-   check MCP availability, write context.md with mcp_status flags, then delegate to scrum-master."
-```
+@src/project-doc.md
 
-## Requirements
+If the document above is missing or is still the unfilled template, stop and
+ask the user to fill in `src/project-doc.md` instead of inventing context.
 
-- Project description at `src/project-doc.md` (use `src/project-template.md` as starting point)
-- OpenCode CLI with project-level config (opencode.json at repo root)
+Otherwise follow your workflow from step 2: detect capabilities, write `context.md` per the
+contract in `AGENTS.md`, delegate planning to `scrum-master`, then run the
+develop → verify → report loop until every story is `done` or `blocked`.
 
-## Expected Output
-
-- `context.md` — Project context with mcp_status flags
-- `sprint-plan.md` — Epics, stories, sprint 1 plan
-- `sprint-state.json` — Machine-readable sprint state
-- `dev-outputs/*.json` — Implementation results per story
-- `test-outputs/*.json` — Test/verification results per story
-- `progress-reports/*.md` — Executive progress reports
+Additional instructions from the user (may be empty): $ARGUMENTS

@@ -27,3 +27,18 @@ build/
 # Logs
 *.log
 npm-debug.log*
+
+# Team run artifacts (generated per run — see AGENTS.md)
+/context.md
+/sprint-plan.md
+/sprint-state.json
+/dev-outputs/
+/test-outputs/
+/progress-reports/
+/src/project-doc.md
+/workspace/
+/.worktrees/
+
+# Skill repos cloned by setup.sh
+/.opencode/skills/mattpocock-skills/
+/.opencode/skills/karpathy-skills/

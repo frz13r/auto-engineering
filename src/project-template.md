@@ -1,6 +1,7 @@
-# Project Context Template
+# Project Document Template
 
-Fill this out before the Scrum Master plans the sprint.
+Copy this file to `src/project-doc.md`, fill it in, then run `/doc-mode`.
+The Project Manager turns it into `context.md` (see the contract in `AGENTS.md`).
 
 ## Project Overview
 
@@ -45,7 +46,6 @@ Fill this out before the Scrum Master plans the sprint.
 | **Number of Developers** | 1 |
 | **Sprint Length** | 2 weeks |
 | **Velocity (points/sprint)** | 20 |
-| **Board Capacity (%)** | 80% |
 
 ### Team Members
 
@@ -67,22 +67,9 @@ Fill this out before the Scrum Master plans the sprint.
 | Field | Value |
 |---|---|
 | **Repo URL** | |
+| **Local Path** | (optional — existing checkout to clone from; the team works on its own clone under `workspace/`) |
 | **Default Branch** | main |
-| **Repo Owner** | |
-
-## MCP Context Gathering Results
-
-### Copilot Enterprise Findings
-- 
-
-### Confluence Documentation
-- 
-
-### GitHub Repo Patterns
-- 
-
-### Existing Jira Projects
-- 
+| **Test Command** | (e.g. `pytest tests/ -v`, `npm test`) |
 
 ## Notes
 

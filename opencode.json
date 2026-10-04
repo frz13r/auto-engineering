@@ -1,127 +1,43 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "$comment": "Portable OpenCode config for autonomous engineering team. No model is hardcoded - uses the operator's default model or --model flag.",
-  "skills": {
-    "paths": [
-      ".opencode/skills/mattpocock-skills/skills",
-      ".opencode/skills/karpathy-skills/skills"
-    ]
-  },
   "plugin": [
-    "superpowers@git+https://github.com/obra/superpowers.git"
+    "superpowers@git+https://github.com/obra/superpowers.git#v6.4.2"
   ],
   "mcp": {
-    "servers": {
-      "copilot-enterprise": {
-        "type": "remote",
-        "url": "https://mcp.svc.cloud.microsoft/enterprise",
-        "enabled": false,
-        "description": "MS Copilot Enterprise MCP for enterprise knowledge and Microsoft Graph data",
-        "environment": {
-          "COPILOT_ENTERPRISE_URL": "${env.COPILOT_ENTERPRISE_URL}"
-        }
+    "team-atlassian": {
+      "type": "local",
+      "command": ["uvx", "--native-tls", "mcp-atlassian@0.23.1"],
+      "environment": {
+        "JIRA_URL": "{env:JIRA_URL}",
+        "JIRA_USERNAME": "{env:JIRA_USERNAME}",
+        "JIRA_API_TOKEN": "{env:JIRA_API_TOKEN}",
+        "CONFLUENCE_URL": "{env:CONFLUENCE_URL}",
+        "CONFLUENCE_USERNAME": "{env:CONFLUENCE_USERNAME}",
+        "CONFLUENCE_API_TOKEN": "{env:CONFLUENCE_API_TOKEN}"
       },
-      "atlassian": {
-        "type": "remote",
-        "url": "https://mcp.atlassian.com/v1/sse",
-        "enabled": false,
-        "description": "Atlassian MCP for Jira and Confluence (requires mcp-remote proxy)"
-      },
-      "github-enterprise": {
-        "type": "local",
-        "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
-        "enabled": false,
-        "description": "GitHub MCP server for repos, PRs, issues",
-        "environment": {
-          "GITHUB_PERSONAL_ACCESS_TOKEN": "${env.GITHUB_TOKEN}"
-        }
-      },
-      "github-enterprise-proxy": {
-        "type": "remote",
-        "url": "https://github.com/github/rest-api-description/raw/main/descriptions/api.github.com/api.github.com.json",
-        "enabled": false,
-        "description": "Optional: GitHub Enterprise Cloud MCP if using GHEC"
-      },
-      "filesystem": {
-        "type": "local",
-        "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
-        "enabled": true,
-        "description": "Filesystem MCP scoped to project directory"
-      }
-    }
-  },
-  "agent": {
-    "project-manager": {
-      "description": "Orchestrator: gathers context, plans sprints, coordinates all dev via subagents",
-      "mode": "primary",
-      "prompt": "{file:.opencode/agents/project-manager.md}",
-      "permission": {
-        "read": "allow",
-        "edit": "allow",
-        "bash": "allow",
-        "todowrite": "allow",
-        "webfetch": "allow",
-        "websearch": "allow",
-        "task": {
-          "scrum-master": "allow",
-          "developer": "allow",
-          "tester": "allow",
-          "progress-reporter": "allow"
-        }
-      },
-      "color": "#4F46E5"
+      "timeout": 600000,
+      "enabled": false
     },
-    "scrum-master": {
-      "description": "Plans Jira sprints: epics, stories, story points, capacity packing",
-      "mode": "subagent",
-      "prompt": "{file:.opencode/agents/scrum-master.md}",
-      "permission": {
-        "read": "allow",
-        "edit": "allow",
-        "bash": "allow",
-        "todowrite": "allow",
-        "task": "deny"
+    "team-github": {
+      "type": "local",
+      "command": [
+        "docker", "run", "-i", "--rm",
+        "-e", "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "-e", "GITHUB_HOST",
+        "ghcr.io/github/github-mcp-server:v1.14.0"
+      ],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_PERSONAL_ACCESS_TOKEN}",
+        "GITHUB_HOST": "{env:GITHUB_HOST}"
       },
-      "color": "#10B981"
+      "timeout": 600000,
+      "enabled": false
     },
-    "developer": {
-      "description": "Implements sprint stories, writes tests, writes results to files",
-      "mode": "subagent",
-      "prompt": "{file:.opencode/agents/developer.md}",
-      "permission": {
-        "read": "allow",
-        "edit": "allow",
-        "bash": "allow",
-        "todowrite": "allow",
-        "task": "deny"
-      },
-      "color": "#3B82F6"
-    },
-    "tester": {
-      "description": "Verifies stories against acceptance criteria, runs tests, writes reports",
-      "mode": "subagent",
-      "prompt": "{file:.opencode/agents/tester.md}",
-      "permission": {
-        "read": "allow",
-        "edit": "allow",
-        "bash": "allow",
-        "todowrite": "allow",
-        "task": "deny"
-      },
-      "color": "#F59E0B"
-    },
-    "progress-reporter": {
-      "description": "Generates concise executive progress reports for stakeholders",
-      "mode": "subagent",
-      "prompt": "{file:.opencode/agents/progress-reporter.md}",
-      "permission": {
-        "read": "allow",
-        "edit": "allow",
-        "bash": "allow",
-        "todowrite": "allow",
-        "task": "deny"
-      },
-      "color": "#EF4442"
+    "team-copilot": {
+      "type": "remote",
+      "url": "https://mcp.svc.cloud.microsoft/enterprise",
+      "timeout": 600000,
+      "enabled": false
     }
   },
   "permission": {
@@ -132,6 +48,5 @@
     }
   },
   "formatter": false,
-  "lsp": true,
-  "instructions": ["AGENTS.md", ".opencode/agents/project-manager.md"]
+  "lsp": true
 }
