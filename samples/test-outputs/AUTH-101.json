@@ -1,14 +1,14 @@
 {
   "story_id": "AUTH-101",
   "verdict": "APPROVE",
+  "commit_tested": "a1b2c3d",
   "acceptance_criteria": [
-    {"criterion": "Database schema includes users table with role field", "status": "met", "notes": "src/lib/schema.sql lines 15-25"},
-    {"criterion": "User model has password hashing", "status": "met", "notes": "Using bcrypt via next-auth"},
-    {"criterion": "8 unit tests pass", "status": "met"}
+    {"criterion": "Users table with role field", "status": "met", "notes": "src/lib/schema.sql:15-25"},
+    {"criterion": "Passwords stored hashed", "status": "met", "notes": "src/models/user.test.ts › hashes password on create"}
   ],
   "tests_run": 8,
   "tests_passed": 8,
   "tests_failed": 0,
   "issues_found": [],
-  "summary": "All acceptance criteria met. Tests cover schema validation and password hashing."
+  "summary": "All acceptance criteria met. Tests cover schema constraints and password hashing."
 }
